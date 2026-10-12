@@ -1,0 +1,49 @@
+name: fetch-lottery
+
+on:
+  schedule:
+    # 北京时间每天 22:30（双色球/大乐透当日开奖结束后）
+    - cron: '30 14 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch-lottery
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm i playwright@1.49.1 >/dev/null
+          npx playwright install --with-deps chromium
+
+      - name: Fetch 双色球 (cwl.gov.cn)
+        run: node scripts/fetch.mjs ssq
+
+      - name: Fetch 大乐透 (sporttery.cn)
+        run: node scripts/fetch.mjs dlt
+
+      - name: Commit data
+        run: |
+          git config user.name "lottery-bot"
+          git config user.email "daipenn@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "数据无变化，跳过提交"
+          else
+            git commit -m "data: $(date -u +%FT%TZ 更新开奖数据)"
+            git push
+          fi
