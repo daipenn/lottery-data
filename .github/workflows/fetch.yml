@@ -27,14 +27,21 @@ jobs:
       - name: Install Playwright
         run: |
           npm init -y >/dev/null 2>&1
-          npm i playwright@1.49.1 >/dev/null
+          npm i playwright@1.49.1 playwright-extra puppeteer-extra-plugin-stealth >/dev/null
           npx playwright install --with-deps chromium
+          sudo apt-get update -qq && sudo apt-get install -y xvfb
 
+      # 有头浏览器（xvfb 虚拟显示）+ stealth，过反爬指纹检测
+      # 两个玩法互不拖累：一个失败另一个照常入库，最后统一校验并让任务标红
       - name: Fetch 双色球 (cwl.gov.cn)
-        run: node scripts/fetch.mjs ssq
+        id: ssq
+        continue-on-error: true
+        run: xvfb-run -a node scripts/fetch.mjs ssq
 
       - name: Fetch 大乐透 (sporttery.cn)
-        run: node scripts/fetch.mjs dlt
+        id: dlt
+        continue-on-error: true
+        run: xvfb-run -a node scripts/fetch.mjs dlt
 
       - name: Commit data
         run: |
@@ -47,3 +54,10 @@ jobs:
             git commit -m "data: $(date -u +%FT%TZ 更新开奖数据)"
             git push
           fi
+
+      - name: Verify data files
+        run: |
+          ok=true
+          [ -f data/ssq.json ] || { echo "::error::双色球数据缺失"; ok=false; }
+          [ -f data/dlt.json ] || { echo "::error::大乐透数据缺失"; ok=false; }
+          $ok
