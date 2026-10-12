@@ -47,7 +47,8 @@ jobs:
         run: |
           git config user.name "lottery-bot"
           git config user.email "daipenn@users.noreply.github.com"
-          git add data/
+          mkdir -p data
+          git add data/ || true
           if git diff --cached --quiet; then
             echo "数据无变化，跳过提交"
           else
